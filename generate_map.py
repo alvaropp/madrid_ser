@@ -513,11 +513,11 @@ def generate_optimized_map():
                 searchMarker = L.marker([lat, lon], {
                     icon: L.divIcon({
                         className: 'search-marker',
-                        html: '<div style="background: red; width: 12px; height: 12px; border-radius: 50%; border: 2px solid white;"></div>',
-                        iconSize: [12, 12]
+                        html: '<div style="background: red; width: 20px; height: 20px; border-radius: 50%; border: 3px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.3);"></div>',
+                        iconSize: [20, 20]
                     })
                 }).addTo(map);
-                searchMarker.bindPopup(`<strong>Search Location</strong><br>${location.display_name}`).openPopup();
+                searchMarker.bindPopup(`<strong>Search Location</strong><br>${location.display_name}`);
 
                 if (!isInRegulatedArea(lat, lon)) {
                     errorDiv.textContent = 'This address is not in a SER-regulated area.';
