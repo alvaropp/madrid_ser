@@ -25,6 +25,13 @@ def simplify_coordinates(coords, precision=5):
     return [[round(lat, precision), round(lon, precision)] for lon, lat, *_ in coords]
 
 
+def calculate_centroid(coords):
+    """Calculate the centroid of a line segment"""
+    lats = [c[0] for c in coords]
+    lons = [c[1] for c in coords]
+    return [sum(lats) / len(lats), sum(lons) / len(lons)]
+
+
 def generate_optimized_map():
     """Generate optimized static map"""
     print("Loading parking segments from shapefile...")
@@ -49,12 +56,14 @@ def generate_optimized_map():
             coords = list(row['geometry'].coords)
             simplified_coords = simplify_coordinates(coords)
 
-            features.append({
+            feature = {
                 'coords': simplified_coords,
                 'spots': int(row['Res_NumPla']),
                 'type': str(row['Bateria_Li']) if row['Bateria_Li'] else 'N/A',
-                'id': int(row['ID'])
-            })
+                'id': int(row['ID']),
+                'centroid': calculate_centroid(simplified_coords)
+            }
+            features.append(feature)
 
         zone_data[zone_type] = features
 
@@ -163,6 +172,91 @@ def generate_optimized_map():
             0% {{ transform: rotate(0deg); }}
             100% {{ transform: rotate(360deg); }}
         }}
+        .search-box {{
+            position: absolute;
+            top: 80px;
+            left: 10px;
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+            z-index: 1000;
+            width: 300px;
+        }}
+        .search-box h3 {{
+            margin: 0 0 10px 0;
+            font-size: 16px;
+        }}
+        .search-input-container {{
+            display: flex;
+            gap: 5px;
+            margin-bottom: 10px;
+        }}
+        .search-box input {{
+            flex: 1;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+        }}
+        .search-box button {{
+            padding: 8px 15px;
+            background: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+        }}
+        .search-box button:hover {{
+            background: #0056b3;
+        }}
+        .search-box button:disabled {{
+            background: #ccc;
+            cursor: not-allowed;
+        }}
+        .results-panel {{
+            max-height: 400px;
+            overflow-y: auto;
+            margin-top: 10px;
+            display: none;
+        }}
+        .results-panel.show {{
+            display: block;
+        }}
+        .result-item {{
+            padding: 10px;
+            border-top: 1px solid #eee;
+            cursor: pointer;
+            transition: background 0.2s;
+        }}
+        .result-item:hover {{
+            background: #f5f5f5;
+        }}
+        .result-item strong {{
+            color: #007bff;
+        }}
+        .result-distance {{
+            color: #666;
+            font-size: 13px;
+        }}
+        .error-message {{
+            color: #dc3545;
+            font-size: 13px;
+            margin-top: 5px;
+        }}
+        @media (max-width: 768px) {{
+            .search-box {{
+                width: calc(100% - 20px);
+                left: 10px;
+                right: 10px;
+            }}
+            .legend {{
+                bottom: 10px;
+                right: 10px;
+                font-size: 12px;
+            }}
+        }}
     </style>
 </head>
 <body>
@@ -176,6 +270,16 @@ def generate_optimized_map():
     <div class="info-box">
         <h2>Madrid SER - Regulated Parking Zones</h2>
         <p>{total_segments:,} segments | {total_spots:,} parking spots</p>
+    </div>
+
+    <div class="search-box">
+        <h3>Find Blue Parking</h3>
+        <div class="search-input-container">
+            <input type="text" id="addressInput" placeholder="Enter Madrid address..." />
+            <button onclick="searchAddress()">Search</button>
+        </div>
+        <div id="errorMessage" class="error-message"></div>
+        <div id="resultsPanel" class="results-panel"></div>
     </div>
 
     <div class="legend">
@@ -217,6 +321,192 @@ def generate_optimized_map():
 
         // Layer groups for each zone type
         const layerGroups = {};
+        const allPolylines = {}; // Store polylines for highlighting
+
+        // Variables for search functionality
+        let searchMarker = null;
+        let highlightedPolylines = [];
+
+        // Calculate distance between two points (Haversine formula)
+        function calculateDistance(lat1, lon1, lat2, lon2) {{
+            const R = 6371e3; // Earth radius in meters
+            const φ1 = lat1 * Math.PI / 180;
+            const φ2 = lat2 * Math.PI / 180;
+            const Δφ = (lat2 - lat1) * Math.PI / 180;
+            const Δλ = (lon2 - lon1) * Math.PI / 180;
+
+            const a = Math.sin(Δφ/2) * Math.sin(Δφ/2) +
+                    Math.cos(φ1) * Math.cos(φ2) *
+                    Math.sin(Δλ/2) * Math.sin(Δλ/2);
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+
+            return R * c; // Distance in meters
+        }}
+
+        // Search for address using Nominatim
+        async function searchAddress() {{
+            const input = document.getElementById('addressInput');
+            const query = input.value.trim();
+            const errorDiv = document.getElementById('errorMessage');
+            const resultsPanel = document.getElementById('resultsPanel');
+
+            errorDiv.textContent = '';
+            resultsPanel.innerHTML = '';
+            resultsPanel.classList.remove('show');
+
+            if (!query) {{
+                errorDiv.textContent = 'Please enter an address';
+                return;
+            }}
+
+            // Show loading
+            resultsPanel.innerHTML = '<div style="padding: 10px;">Searching...</div>';
+            resultsPanel.classList.add('show');
+
+            try {{
+                // Geocode address using Nominatim
+                const geocodeUrl = `https://nominatim.openstreetmap.org/search?format=json&q=${{encodeURIComponent(query + ', Madrid, Spain')}}&limit=1`;
+                const response = await fetch(geocodeUrl);
+                const data = await response.json();
+
+                if (data.length === 0) {{
+                    errorDiv.textContent = 'Address not found. Try a different search.';
+                    resultsPanel.classList.remove('show');
+                    return;
+                }}
+
+                const location = data[0];
+                const lat = parseFloat(location.lat);
+                const lon = parseFloat(location.lon);
+
+                // Find nearest blue parking zones
+                findNearestBlueParking(lat, lon, location.display_name);
+
+            }} catch (error) {{
+                errorDiv.textContent = 'Error searching. Please try again.';
+                resultsPanel.classList.remove('show');
+                console.error('Search error:', error);
+            }}
+        }}
+
+        // Find nearest blue parking zones
+        function findNearestBlueParking(lat, lon, addressName) {{
+            const resultsPanel = document.getElementById('resultsPanel');
+
+            // Clear previous search marker
+            if (searchMarker) {{
+                map.removeLayer(searchMarker);
+            }}
+
+            // Clear previous highlights
+            highlightedPolylines.forEach(p => {{
+                p.setStyle({{
+                    weight: p.options.originalWeight,
+                    opacity: 0.8,
+                    color: p.options.originalColor
+                }});
+            }});
+            highlightedPolylines = [];
+
+            // Add marker at searched location
+            searchMarker = L.marker([lat, lon], {{
+                icon: L.divIcon({{
+                    className: 'search-marker',
+                    html: '<div style="background: red; width: 12px; height: 12px; border-radius: 50%; border: 2px solid white;"></div>',
+                    iconSize: [12, 12]
+                }})
+            }}).addTo(map);
+            searchMarker.bindPopup(`<strong>Search Location</strong><br>${{addressName}}`).openPopup();
+
+            // Zoom to location
+            map.setView([lat, lon], 16);
+
+            // Calculate distances to all blue parking segments
+            const blueSegments = zoneData['Azul'] || [];
+            const distances = blueSegments.map(segment => {{
+                const centroid = segment.centroid;
+                const distance = calculateDistance(lat, lon, centroid[0], centroid[1]);
+                return {{
+                    segment: segment,
+                    distance: distance
+                }};
+            }});
+
+            // Sort by distance and take top 10
+            distances.sort((a, b) => a.distance - b.distance);
+            const nearest = distances.slice(0, 10);
+
+            // Display results
+            if (nearest.length === 0) {{
+                resultsPanel.innerHTML = '<div style="padding: 10px;">No blue parking zones found nearby.</div>';
+            }} else {{
+                let html = '<div style="padding: 10px; font-weight: bold; border-bottom: 2px solid #007bff;">Nearest Blue Zones:</div>';
+                nearest.forEach((item, index) => {{
+                    const distanceM = Math.round(item.distance);
+                    const walkTime = Math.round(item.distance / 83); // 5 km/h = 83 m/min
+                    html += `
+                        <div class="result-item" onclick="highlightSegment(${{item.segment.id}}, ${{index}})">
+                            <strong>${{index + 1}}. ${{item.segment.spots}} spots</strong>
+                            <div class="result-distance">
+                                ${{distanceM}}m away (~${{walkTime}} min walk)
+                            </div>
+                        </div>
+                    `;
+                }});
+                resultsPanel.innerHTML = html;
+
+                // Highlight the nearest zones on map
+                nearest.slice(0, 5).forEach((item, index) => {{
+                    const polyline = allPolylines[item.segment.id];
+                    if (polyline) {{
+                        polyline.setStyle({{
+                            weight: 8,
+                            opacity: 1,
+                            color: '#ff6b6b'
+                        }});
+                        highlightedPolylines.push(polyline);
+
+                        // Add numbered marker at segment centroid
+                        const centroid = item.segment.centroid;
+                        L.marker([centroid[0], centroid[1]], {{
+                            icon: L.divIcon({{
+                                className: 'number-marker',
+                                html: `<div style="background: #007bff; color: white; width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; border: 2px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.3);">${{index + 1}}</div>`,
+                                iconSize: [24, 24]
+                            }})
+                        }}).addTo(map);
+                    }}
+                }});
+            }}
+
+            resultsPanel.classList.add('show');
+        }}
+
+        // Highlight a specific segment when clicked from results
+        function highlightSegment(segmentId, index) {{
+            const polyline = allPolylines[segmentId];
+            if (polyline) {{
+                // Flash animation
+                polyline.setStyle({{ weight: 12, opacity: 1 }});
+                setTimeout(() => polyline.setStyle({{ weight: 8, opacity: 1 }}), 200);
+                setTimeout(() => polyline.setStyle({{ weight: 12, opacity: 1 }}), 400);
+                setTimeout(() => polyline.setStyle({{ weight: 8, opacity: 1 }}), 600);
+
+                // Pan to segment
+                const bounds = polyline.getBounds();
+                map.fitBounds(bounds, {{ padding: [50, 50] }});
+
+                // Open popup
+                polyline.openPopup();
+            }}
+        }}
+
+        // Allow search on Enter key
+        document.getElementById('addressInput').addEventListener('keypress', function(e) {{
+            if (e.key === 'Enter') {{
+                searchAddress();
+            }}
+        }});
 
         // Add segments to map
         Object.keys(zoneData).forEach(zoneType => {
@@ -229,7 +519,9 @@ def generate_optimized_map():
                 const polyline = L.polyline(segment.coords, {
                     color: color,
                     weight: weight,
-                    opacity: 0.8
+                    opacity: 0.8,
+                    originalColor: color,
+                    originalWeight: weight
                 });
 
                 polyline.bindPopup(`
@@ -244,6 +536,9 @@ def generate_optimized_map():
                 polyline.bindTooltip(`${zoneType}: ${segment.spots} spots`);
 
                 polyline.addTo(layerGroup);
+
+                // Store polyline for later highlighting
+                allPolylines[segment.id] = polyline;
             });
 
             layerGroups[zoneType] = layerGroup;

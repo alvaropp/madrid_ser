@@ -2,6 +2,17 @@
 
 Interactive map showing all regulated parking zones (SER - Servicio de Estacionamiento Regulado) in Madrid with color-coded segments and parking spot counts.
 
+## Features
+
+- **34,102 parking segments** across Madrid
+- **179,031 total parking spots**
+- **Color-coded zones**: Verde (Green), Azul (Blue), Naranja (Orange), Rojo (Red), Alta Rotación (Purple)
+- **Address Search**: Find nearest blue parking zones from any Madrid address
+  - Shows top 10 nearest zones with distances and walking time
+  - Visual highlighting and numbered markers on map
+  - Click results to zoom and view details
+- **Interactive**: Click segments for details, toggle layers on/off
+- **Line thickness** represents number of parking spots
 
 ## Live Map
 
