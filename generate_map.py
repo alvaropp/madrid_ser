@@ -400,7 +400,7 @@ def generate_optimized_map():
                         polyline.setStyle({
                             weight: 8,
                             opacity: 1,
-                            color: '#ff6b6b'
+                            color: polyline.options.originalColor
                         });
                         highlightedPolylines.push(polyline);
 
