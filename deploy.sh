@@ -8,7 +8,7 @@ echo ""
 
 # Generate the map
 echo "📊 Generating map..."
-python generate_map.py
+.venv/bin/python generate_map.py
 
 echo ""
 echo "📤 Deploying to gh-pages branch..."
