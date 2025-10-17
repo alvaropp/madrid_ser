@@ -129,7 +129,7 @@ def generate_optimized_map():
         .top-left {
             top: 10px;
             left: 10px;
-            max-width: 350px;
+            max-width: 450px;
         }
         .bottom-right {
             bottom: 35px;
