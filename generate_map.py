@@ -182,19 +182,25 @@ def generate_optimized_map():
     <div class="overlay-panel bottom-right">
         <div class="card shadow-sm">
             <div class="card-body p-2">
-                <div class="fw-bold mb-1 small">Zone Types</div>
+                <div class="d-grid mb-1">
+                    <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#legendContent">
+                        <span>Zone Types</span>
+                    </button>
+                </div>
+                <div class="collapse" id="legendContent">
 """
 
     for zone_type in sorted(ZONE_COLORS.keys()):
         if zone_type != 'Unknown':
             color = ZONE_COLORS[zone_type]
-            html_content += f"""                <div class="d-flex align-items-center mb-1">
-                    <div style="width: 20px; height: 3px; background: {color}; margin-right: 8px;"></div>
-                    <small>{zone_type}</small>
-                </div>
+            html_content += f"""                    <div class="d-flex align-items-center mb-1">
+                        <div style="width: 20px; height: 3px; background: {color}; margin-right: 8px;"></div>
+                        <small>{zone_type}</small>
+                    </div>
 """
 
-    html_content += """                <small class="text-muted fst-italic">Line thickness = spots</small>
+    html_content += """                    <small class="text-muted fst-italic">Line thickness = spots</small>
+                </div>
             </div>
         </div>
     </div>
