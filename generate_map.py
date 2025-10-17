@@ -7,6 +7,7 @@ import json
 
 # Configuration
 DATA_FILE = "data/SHP_ZIP/Bandas_de_Aparcamiento.shp"
+BOUNDARY_FILE = "data/SHP_ZIP/Barrios_Zona_SER.shp"
 OUTPUT_FILE = "index.html"
 
 # Color mapping for zone types
@@ -39,6 +40,22 @@ def generate_optimized_map():
 
     print(f"Converting {len(gdf)} segments to WGS84...")
     gdf = gdf.to_crs(epsg=4326)
+
+    print("Loading SER boundary...")
+    boundary_gdf = gpd.read_file(BOUNDARY_FILE)
+    boundary_gdf = boundary_gdf.to_crs(epsg=4326)
+
+    # Filter out areas that are NOT in the SER zone
+    boundary_gdf = boundary_gdf[boundary_gdf['NOMBAR'] != 'No está en la zona SER']
+
+    # Convert boundary polygons to simplified coordinate lists
+    boundary_data = []
+    for idx, row in boundary_gdf.iterrows():
+        coords = list(row['geometry'].exterior.coords)
+        simplified_coords = simplify_coordinates(coords)
+        boundary_data.append(simplified_coords)
+
+    print(f"  Loaded {len(boundary_data)} SER boundary polygons (filtered out non-SER areas)")
 
     # Clean up the data
     gdf['Color'] = gdf['Color'].fillna('Unknown')
@@ -73,7 +90,8 @@ def generate_optimized_map():
     total_segments = len(gdf)
     total_spots = int(gdf['Res_NumPla'].sum())
 
-    html_content = f"""<!DOCTYPE html>
+    # Start building HTML - using regular string concatenation to avoid f-string brace issues
+    html_content = """<!DOCTYPE html>
 <html>
 <head>
     <meta charset="utf-8">
@@ -82,21 +100,21 @@ def generate_optimized_map():
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <style>
-        * {{
+        * {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
-        }}
-        body {{
+        }
+        body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
             height: 100vh;
             overflow: hidden;
-        }}
-        #map {{
+        }
+        #map {
             width: 100%;
             height: 100%;
-        }}
-        .info-box {{
+        }
+        .info-box {
             position: absolute;
             top: 10px;
             left: 50%;
@@ -106,17 +124,17 @@ def generate_optimized_map():
             border-radius: 8px;
             box-shadow: 0 2px 10px rgba(0,0,0,0.2);
             z-index: 1000;
-        }}
-        .info-box h2 {{
+        }
+        .info-box h2 {
             margin: 0;
             font-size: 20px;
-        }}
-        .info-box p {{
+        }
+        .info-box p {
             margin: 5px 0 0 0;
             font-size: 14px;
             color: #666;
-        }}
-        .legend {{
+        }
+        .legend {
             position: absolute;
             bottom: 30px;
             right: 30px;
@@ -126,28 +144,28 @@ def generate_optimized_map():
             box-shadow: 0 2px 10px rgba(0,0,0,0.2);
             z-index: 1000;
             font-size: 14px;
-        }}
-        .legend-title {{
+        }
+        .legend-title {
             font-weight: bold;
             margin-bottom: 10px;
-        }}
-        .legend-item {{
+        }
+        .legend-item {
             display: flex;
             align-items: center;
             margin: 5px 0;
-        }}
-        .legend-line {{
+        }
+        .legend-line {
             width: 20px;
             height: 3px;
             margin-right: 8px;
-        }}
-        .legend-note {{
+        }
+        .legend-note {
             margin-top: 10px;
             font-size: 12px;
             color: #666;
             font-style: italic;
-        }}
-        .loading {{
+        }
+        .loading {
             position: absolute;
             top: 50%;
             left: 50%;
@@ -158,8 +176,8 @@ def generate_optimized_map():
             box-shadow: 0 2px 10px rgba(0,0,0,0.2);
             z-index: 2000;
             text-align: center;
-        }}
-        .spinner {{
+        }
+        .spinner {
             border: 4px solid #f3f3f3;
             border-top: 4px solid #667eea;
             border-radius: 50%;
@@ -167,12 +185,12 @@ def generate_optimized_map():
             height: 40px;
             animation: spin 1s linear infinite;
             margin: 0 auto 15px;
-        }}
-        @keyframes spin {{
-            0% {{ transform: rotate(0deg); }}
-            100% {{ transform: rotate(360deg); }}
-        }}
-        .search-box {{
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .search-box {
             position: absolute;
             top: 80px;
             left: 10px;
@@ -181,82 +199,90 @@ def generate_optimized_map():
             border-radius: 8px;
             box-shadow: 0 2px 10px rgba(0,0,0,0.2);
             z-index: 1000;
-            width: 300px;
-        }}
-        .search-box h3 {{
+            width: 350px;
+        }
+        .search-box h3 {
             margin: 0 0 10px 0;
             font-size: 16px;
-        }}
-        .search-input-container {{
+        }
+        .search-input-container {
             display: flex;
             gap: 5px;
             margin-bottom: 10px;
-        }}
-        .search-box input {{
+            width: 100%;
+        }
+        .search-box input {
             flex: 1;
             padding: 8px;
             border: 1px solid #ddd;
             border-radius: 4px;
             font-size: 14px;
-        }}
-        .search-box button {{
-            padding: 8px 15px;
+        }
+        .search-box button {
+            padding: 8px 12px;
             background: #007bff;
             color: white;
             border: none;
             border-radius: 4px;
             cursor: pointer;
             font-size: 14px;
-        }}
-        .search-box button:hover {{
+            flex-shrink: 0;
+        }
+        .search-box button:hover {
             background: #0056b3;
-        }}
-        .search-box button:disabled {{
+        }
+        .search-box button:disabled {
             background: #ccc;
             cursor: not-allowed;
-        }}
-        .results-panel {{
+        }
+        .search-box button.clear-btn {
+            background: #6c757d;
+        }
+        .search-box button.clear-btn:hover {
+            background: #5a6268;
+        }
+        .results-panel {
             max-height: 400px;
             overflow-y: auto;
             margin-top: 10px;
             display: none;
-        }}
-        .results-panel.show {{
+        }
+        .results-panel.show {
             display: block;
-        }}
-        .result-item {{
+        }
+        .result-item {
             padding: 10px;
             border-top: 1px solid #eee;
             cursor: pointer;
             transition: background 0.2s;
-        }}
-        .result-item:hover {{
+        }
+        .result-item:hover {
             background: #f5f5f5;
-        }}
-        .result-item strong {{
+        }
+        .result-item strong {
             color: #007bff;
-        }}
-        .result-distance {{
+        }
+        .result-distance {
             color: #666;
             font-size: 13px;
-        }}
-        .error-message {{
+        }
+        .error-message {
             color: #dc3545;
             font-size: 13px;
             margin-top: 5px;
-        }}
-        @media (max-width: 768px) {{
-            .search-box {{
+        }
+        @media (max-width: 768px) {
+            .search-box {
                 width: calc(100% - 20px);
                 left: 10px;
                 right: 10px;
-            }}
-            .legend {{
+            }
+            .legend {
                 bottom: 10px;
                 right: 10px;
                 font-size: 12px;
-            }}
-        }}
+            }
+        }
     </style>
 </head>
 <body>
@@ -269,7 +295,7 @@ def generate_optimized_map():
 
     <div class="info-box">
         <h2>Madrid SER - Regulated Parking Zones</h2>
-        <p>{total_segments:,} segments | {total_spots:,} parking spots</p>
+        <p>""" + f"{total_segments:,} segments | {total_spots:,} parking spots" + """</p>
     </div>
 
     <div class="search-box">
@@ -277,6 +303,7 @@ def generate_optimized_map():
         <div class="search-input-container">
             <input type="text" id="addressInput" placeholder="Enter Madrid address..." />
             <button onclick="searchAddress()">Search</button>
+            <button class="clear-btn" onclick="clearSearch()">Clear</button>
         </div>
         <div id="errorMessage" class="error-message"></div>
         <div id="resultsPanel" class="results-panel"></div>
@@ -301,50 +328,66 @@ def generate_optimized_map():
     <script>
 """
 
-    # Embed zone data as JavaScript
+    # Embed zone data and boundary as JavaScript
     html_content += f"        const zoneData = {json.dumps(zone_data)};\n"
     html_content += f"        const zoneColors = {json.dumps(ZONE_COLORS)};\n"
+    html_content += f"        const serBoundaries = {json.dumps(boundary_data)};\n"
 
-    html_content += """
+    # JavaScript code - using regular strings to avoid brace escaping issues
+    js_code = """
         // Initialize map
         const map = L.map('map', {
             center: [40.4168, -3.7038],
             zoom: 13,
-            preferCanvas: true  // Use canvas for better performance with many features
+            preferCanvas: true
         });
 
-        // Add tile layer
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
             attribution: '© OpenStreetMap contributors',
             maxZoom: 19
         }).addTo(map);
 
-        // Layer groups for each zone type
         const layerGroups = {};
-        const allPolylines = {}; // Store polylines for highlighting
-
-        // Variables for search functionality
+        const allPolylines = {};
         let searchMarker = null;
         let highlightedPolylines = [];
+        let numberMarkers = [];
 
-        // Calculate distance between two points (Haversine formula)
-        function calculateDistance(lat1, lon1, lat2, lon2) {{
-            const R = 6371e3; // Earth radius in meters
+        function isPointInPolygon(lat, lon, polygon) {
+            let inside = false;
+            for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+                const lat_i = polygon[i][0], lon_i = polygon[i][1];
+                const lat_j = polygon[j][0], lon_j = polygon[j][1];
+                const intersect = ((lon_i > lon) !== (lon_j > lon))
+                    && (lat < (lat_j - lat_i) * (lon - lon_i) / (lon_j - lon_i) + lat_i);
+                if (intersect) inside = !inside;
+            }
+            return inside;
+        }
+
+        function isInRegulatedArea(lat, lon) {
+            for (const boundary of serBoundaries) {
+                if (isPointInPolygon(lat, lon, boundary)) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        function calculateDistance(lat1, lon1, lat2, lon2) {
+            const R = 6371e3;
             const φ1 = lat1 * Math.PI / 180;
             const φ2 = lat2 * Math.PI / 180;
             const Δφ = (lat2 - lat1) * Math.PI / 180;
             const Δλ = (lon2 - lon1) * Math.PI / 180;
-
             const a = Math.sin(Δφ/2) * Math.sin(Δφ/2) +
                     Math.cos(φ1) * Math.cos(φ2) *
                     Math.sin(Δλ/2) * Math.sin(Δλ/2);
             const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+            return R * c;
+        }
 
-            return R * c; // Distance in meters
-        }}
-
-        // Search for address using Nominatim
-        async function searchAddress() {{
+        async function searchAddress() {
             const input = document.getElementById('addressInput');
             const query = input.value.trim();
             const errorDiv = document.getElementById('errorMessage');
@@ -354,161 +397,191 @@ def generate_optimized_map():
             resultsPanel.innerHTML = '';
             resultsPanel.classList.remove('show');
 
-            if (!query) {{
+            if (!query) {
                 errorDiv.textContent = 'Please enter an address';
                 return;
-            }}
+            }
 
-            // Show loading
             resultsPanel.innerHTML = '<div style="padding: 10px;">Searching...</div>';
             resultsPanel.classList.add('show');
 
-            try {{
-                // Geocode address using Nominatim
-                const geocodeUrl = `https://nominatim.openstreetmap.org/search?format=json&q=${{encodeURIComponent(query + ', Madrid, Spain')}}&limit=1`;
+            try {
+                const geocodeUrl = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query + ', Madrid, Spain')}&limit=1`;
                 const response = await fetch(geocodeUrl);
                 const data = await response.json();
 
-                if (data.length === 0) {{
+                if (data.length === 0) {
                     errorDiv.textContent = 'Address not found. Try a different search.';
                     resultsPanel.classList.remove('show');
                     return;
-                }}
+                }
 
                 const location = data[0];
                 const lat = parseFloat(location.lat);
                 const lon = parseFloat(location.lon);
 
-                // Find nearest blue parking zones
+                if (searchMarker) {
+                    map.removeLayer(searchMarker);
+                }
+
+                searchMarker = L.marker([lat, lon], {
+                    icon: L.divIcon({
+                        className: 'search-marker',
+                        html: '<div style="background: red; width: 12px; height: 12px; border-radius: 50%; border: 2px solid white;"></div>',
+                        iconSize: [12, 12]
+                    })
+                }).addTo(map);
+                searchMarker.bindPopup(`<strong>Search Location</strong><br>${location.display_name}`).openPopup();
+
+                map.setView([lat, lon], 16);
+
+                if (!isInRegulatedArea(lat, lon)) {
+                    errorDiv.textContent = 'This address is not in a SER-regulated area.';
+                    resultsPanel.classList.remove('show');
+                    return;
+                }
+
                 findNearestBlueParking(lat, lon, location.display_name);
 
-            }} catch (error) {{
+            } catch (error) {
                 errorDiv.textContent = 'Error searching. Please try again.';
                 resultsPanel.classList.remove('show');
                 console.error('Search error:', error);
-            }}
-        }}
+            }
+        }
 
-        // Find nearest blue parking zones
-        function findNearestBlueParking(lat, lon, addressName) {{
+        function findNearestBlueParking(lat, lon, addressName) {
             const resultsPanel = document.getElementById('resultsPanel');
 
-            // Clear previous search marker
-            if (searchMarker) {{
-                map.removeLayer(searchMarker);
-            }}
-
-            // Clear previous highlights
-            highlightedPolylines.forEach(p => {{
-                p.setStyle({{
+            highlightedPolylines.forEach(p => {
+                p.setStyle({
                     weight: p.options.originalWeight,
                     opacity: 0.8,
                     color: p.options.originalColor
-                }});
-            }});
+                });
+            });
             highlightedPolylines = [];
 
-            // Add marker at searched location
-            searchMarker = L.marker([lat, lon], {{
-                icon: L.divIcon({{
-                    className: 'search-marker',
-                    html: '<div style="background: red; width: 12px; height: 12px; border-radius: 50%; border: 2px solid white;"></div>',
-                    iconSize: [12, 12]
-                }})
-            }}).addTo(map);
-            searchMarker.bindPopup(`<strong>Search Location</strong><br>${{addressName}}`).openPopup();
+            numberMarkers.forEach(marker => {
+                map.removeLayer(marker);
+            });
+            numberMarkers = [];
 
-            // Zoom to location
-            map.setView([lat, lon], 16);
-
-            // Calculate distances to all blue parking segments
             const blueSegments = zoneData['Azul'] || [];
-            const distances = blueSegments.map(segment => {{
+            const distances = blueSegments.map(segment => {
                 const centroid = segment.centroid;
                 const distance = calculateDistance(lat, lon, centroid[0], centroid[1]);
-                return {{
+                return {
                     segment: segment,
                     distance: distance
-                }};
-            }});
+                };
+            });
 
-            // Sort by distance and take top 10
             distances.sort((a, b) => a.distance - b.distance);
             const nearest = distances.slice(0, 10);
 
-            // Display results
-            if (nearest.length === 0) {{
+            if (nearest.length === 0) {
                 resultsPanel.innerHTML = '<div style="padding: 10px;">No blue parking zones found nearby.</div>';
-            }} else {{
+            } else {
                 let html = '<div style="padding: 10px; font-weight: bold; border-bottom: 2px solid #007bff;">Nearest Blue Zones:</div>';
-                nearest.forEach((item, index) => {{
+                nearest.forEach((item, index) => {
                     const distanceM = Math.round(item.distance);
-                    const walkTime = Math.round(item.distance / 83); // 5 km/h = 83 m/min
+                    const walkTime = Math.round(item.distance / 83);
                     html += `
-                        <div class="result-item" onclick="highlightSegment(${{item.segment.id}}, ${{index}})">
-                            <strong>${{index + 1}}. ${{item.segment.spots}} spots</strong>
+                        <div class="result-item" onclick="highlightSegment(${item.segment.id}, ${index})">
+                            <strong>${index + 1}. ${item.segment.spots} spots</strong>
                             <div class="result-distance">
-                                ${{distanceM}}m away (~${{walkTime}} min walk)
+                                ${distanceM}m away (~${walkTime} min walk)
                             </div>
                         </div>
                     `;
-                }});
+                });
                 resultsPanel.innerHTML = html;
 
-                // Highlight the nearest zones on map
-                nearest.slice(0, 5).forEach((item, index) => {{
+                nearest.forEach((item, index) => {
                     const polyline = allPolylines[item.segment.id];
-                    if (polyline) {{
-                        polyline.setStyle({{
+                    if (polyline) {
+                        polyline.setStyle({
                             weight: 8,
                             opacity: 1,
                             color: '#ff6b6b'
-                        }});
+                        });
                         highlightedPolylines.push(polyline);
 
-                        // Add numbered marker at segment centroid
                         const centroid = item.segment.centroid;
-                        L.marker([centroid[0], centroid[1]], {{
-                            icon: L.divIcon({{
+                        const marker = L.marker([centroid[0], centroid[1]], {
+                            icon: L.divIcon({
                                 className: 'number-marker',
-                                html: `<div style="background: #007bff; color: white; width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; border: 2px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.3);">${{index + 1}}</div>`,
+                                html: `<div style="background: #007bff; color: white; width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; border: 2px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.3);">${index + 1}</div>`,
                                 iconSize: [24, 24]
-                            }})
-                        }}).addTo(map);
-                    }}
-                }});
-            }}
+                            })
+                        }).addTo(map);
+                        numberMarkers.push(marker);
+                    }
+                });
+            }
 
             resultsPanel.classList.add('show');
-        }}
+        }
 
-        // Highlight a specific segment when clicked from results
-        function highlightSegment(segmentId, index) {{
+        function highlightSegment(segmentId, index) {
             const polyline = allPolylines[segmentId];
-            if (polyline) {{
-                // Flash animation
-                polyline.setStyle({{ weight: 12, opacity: 1 }});
-                setTimeout(() => polyline.setStyle({{ weight: 8, opacity: 1 }}), 200);
-                setTimeout(() => polyline.setStyle({{ weight: 12, opacity: 1 }}), 400);
-                setTimeout(() => polyline.setStyle({{ weight: 8, opacity: 1 }}), 600);
+            if (polyline) {
+                polyline.setStyle({ weight: 12, opacity: 1 });
+                setTimeout(() => polyline.setStyle({ weight: 8, opacity: 1 }), 200);
+                setTimeout(() => polyline.setStyle({ weight: 12, opacity: 1 }), 400);
+                setTimeout(() => polyline.setStyle({ weight: 8, opacity: 1 }), 600);
 
-                // Pan to segment
                 const bounds = polyline.getBounds();
-                map.fitBounds(bounds, {{ padding: [50, 50] }});
+                map.fitBounds(bounds, { padding: [50, 50] });
 
-                // Open popup
                 polyline.openPopup();
-            }}
-        }}
+            }
+        }
 
-        // Allow search on Enter key
-        document.getElementById('addressInput').addEventListener('keypress', function(e) {{
-            if (e.key === 'Enter') {{
+        function clearSearch() {
+            // Clear input
+            document.getElementById('addressInput').value = '';
+
+            // Clear error message
+            document.getElementById('errorMessage').textContent = '';
+
+            // Hide results panel
+            document.getElementById('resultsPanel').classList.remove('show');
+            document.getElementById('resultsPanel').innerHTML = '';
+
+            // Remove search marker
+            if (searchMarker) {
+                map.removeLayer(searchMarker);
+                searchMarker = null;
+            }
+
+            // Reset highlighted polylines
+            highlightedPolylines.forEach(p => {
+                p.setStyle({
+                    weight: p.options.originalWeight,
+                    opacity: 0.8,
+                    color: p.options.originalColor
+                });
+            });
+            highlightedPolylines = [];
+
+            // Remove number markers
+            numberMarkers.forEach(marker => {
+                map.removeLayer(marker);
+            });
+            numberMarkers = [];
+
+            // Reset map view
+            map.setView([40.4168, -3.7038], 13);
+        }
+
+        document.getElementById('addressInput').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
                 searchAddress();
-            }}
-        }});
+            }
+        });
 
-        // Add segments to map
         Object.keys(zoneData).forEach(zoneType => {
             const color = zoneColors[zoneType] || '#6c757d';
             const layerGroup = L.layerGroup();
@@ -534,10 +607,7 @@ def generate_optimized_map():
                 `);
 
                 polyline.bindTooltip(`${zoneType}: ${segment.spots} spots`);
-
                 polyline.addTo(layerGroup);
-
-                // Store polyline for later highlighting
                 allPolylines[segment.id] = polyline;
             });
 
@@ -545,17 +615,15 @@ def generate_optimized_map():
             layerGroup.addTo(map);
         });
 
-        // Add layer control
         L.control.layers(null, layerGroups, {collapsed: false}).addTo(map);
-
-        // Hide loading indicator
         document.getElementById('loading').style.display = 'none';
-
         console.log('Map loaded successfully!');
     </script>
 </body>
 </html>
 """
+
+    html_content += js_code
 
     print(f"Saving to {OUTPUT_FILE}...")
     with open(OUTPUT_FILE, 'w', encoding='utf-8') as f:
@@ -573,6 +641,7 @@ def generate_optimized_map():
     print("  - Canvas rendering for better performance")
     print("  - Simplified coordinates (5 decimal places)")
     print("  - Compressed data structure")
+    print("  - SER boundary checking for address validation")
 
 
 if __name__ == "__main__":
