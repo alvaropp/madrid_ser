@@ -504,7 +504,12 @@ def generate_optimized_map():
                     </div>
                 `);
 
-                polyline.bindTooltip(`${zoneType}: ${segment.spots} spots`);
+                polyline.bindTooltip(`${zoneType}: ${segment.spots} spots`, {sticky: true});
+
+                polyline.on('click', function(e) {
+                    L.DomEvent.stopPropagation(e);
+                });
+
                 polyline.addTo(layerGroup);
                 allPolylines[segment.id] = polyline;
             });
