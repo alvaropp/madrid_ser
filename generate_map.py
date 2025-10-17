@@ -149,7 +149,7 @@ def generate_optimized_map():
                 max-height: 50vh;
             }
             .bottom-right {
-                bottom: 35px;
+                bottom: 20px;
                 right: 10px;
                 max-width: 200px;
                 font-size: 0.85rem;
