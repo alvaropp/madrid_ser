@@ -2,19 +2,8 @@
 
 Interactive map showing all regulated parking zones (SER - Servicio de Estacionamiento Regulado) in Madrid with color-coded segments and parking spot counts.
 
-## Quick Start
 
-Simply open `static_map.html` in your browser - no installation or server required!
-
-## Map Features
-
-- **34,102 parking segments** across Madrid
-- **179,031 total parking spots**
-- **Color-coded zones**: Verde (Green), Azul (Blue), Naranja (Orange), Rojo (Red), Alta Rotación (Purple)
-- **Interactive**: Click segments for details, toggle layers on/off
-- **Line thickness** represents number of parking spots
-
-## Regenerating the Map
+## Generating the Map
 
 If you need to update the map with new data:
 
@@ -22,13 +11,12 @@ If you need to update the map with new data:
 # Install dependencies
 pip install -r requirements.txt
 
-# Regenerate the static map
-python generate_static_map.py
+# Regenerate the map
+python generate_map.py
 ```
 
-This will create a new `static_map.html` with all data embedded.
+This will create a new `index.html` with all data embedded and optimized.
 
-<CLAUDE DO NOT TOUCH>
 
 ### Data Sources
 
