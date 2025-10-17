@@ -250,6 +250,29 @@ def generate_optimized_map():
         .results-panel.show {
             display: block;
         }
+        .results-header {
+            padding: 10px;
+            font-weight: bold;
+            border-bottom: 2px solid #007bff;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: pointer;
+            user-select: none;
+        }
+        .results-header:hover {
+            background: #f5f5f5;
+        }
+        .toggle-icon {
+            font-size: 12px;
+            color: #666;
+        }
+        .results-list {
+            display: block;
+        }
+        .results-list.collapsed {
+            display: none;
+        }
         .result-item {
             padding: 10px;
             border-top: 1px solid #eee;
@@ -272,15 +295,78 @@ def generate_optimized_map():
             margin-top: 5px;
         }
         @media (max-width: 768px) {
+            .info-box {
+                top: 10px;
+                left: 10px;
+                right: 10px;
+                transform: none;
+                padding: 10px 15px;
+            }
+            .info-box h2 {
+                font-size: 16px;
+            }
+            .info-box p {
+                font-size: 12px;
+            }
             .search-box {
                 width: calc(100% - 20px);
                 left: 10px;
                 right: 10px;
+                top: 80px;
+            }
+            .search-box h3 {
+                font-size: 14px;
+            }
+            .search-box input {
+                font-size: 13px;
+                padding: 6px;
+            }
+            .search-box button {
+                font-size: 12px;
+                padding: 6px 10px;
             }
             .legend {
                 bottom: 10px;
                 right: 10px;
-                font-size: 12px;
+                left: 10px;
+                font-size: 11px;
+                padding: 10px;
+            }
+            .legend-item {
+                margin: 3px 0;
+            }
+            .result-item {
+                padding: 8px;
+            }
+            .results-panel {
+                max-height: 250px;
+            }
+        }
+        @media (max-width: 480px) {
+            .info-box {
+                position: relative;
+                top: 0;
+                left: 0;
+                right: 0;
+                margin: 0;
+                border-radius: 0;
+            }
+            .search-box {
+                top: auto;
+                bottom: 60px;
+                left: 10px;
+                right: 10px;
+                width: calc(100% - 20px);
+            }
+            .legend {
+                bottom: 10px;
+                left: 10px;
+                right: 10px;
+                font-size: 10px;
+                padding: 8px;
+            }
+            .legend-title {
+                margin-bottom: 5px;
             }
         }
     </style>
@@ -433,11 +519,10 @@ def generate_optimized_map():
                 }).addTo(map);
                 searchMarker.bindPopup(`<strong>Search Location</strong><br>${location.display_name}`).openPopup();
 
-                map.setView([lat, lon], 16);
-
                 if (!isInRegulatedArea(lat, lon)) {
                     errorDiv.textContent = 'This address is not in a SER-regulated area.';
                     resultsPanel.classList.remove('show');
+                    map.setView([lat, lon], 14);
                     return;
                 }
 
@@ -483,7 +568,8 @@ def generate_optimized_map():
             if (nearest.length === 0) {
                 resultsPanel.innerHTML = '<div style="padding: 10px;">No blue parking zones found nearby.</div>';
             } else {
-                let html = '<div style="padding: 10px; font-weight: bold; border-bottom: 2px solid #007bff;">Nearest Blue Zones:</div>';
+                let html = '<div class="results-header" onclick="toggleResults()"><span>Nearest Blue Zones:</span><span class="toggle-icon" id="toggleIcon">▼</span></div>';
+                html += '<div class="results-list" id="resultsList">';
                 nearest.forEach((item, index) => {
                     const distanceM = Math.round(item.distance);
                     const walkTime = Math.round(item.distance / 83);
@@ -496,7 +582,21 @@ def generate_optimized_map():
                         </div>
                     `;
                 });
+                html += '</div>';
                 resultsPanel.innerHTML = html;
+
+                // Auto-collapse on small screens
+                if (window.innerWidth <= 768) {
+                    const resultsList = document.getElementById('resultsList');
+                    const toggleIcon = document.getElementById('toggleIcon');
+                    if (resultsList && toggleIcon) {
+                        resultsList.classList.add('collapsed');
+                        toggleIcon.textContent = '▶';
+                    }
+                }
+
+                // Collect all bounds for fitting the map view
+                const allBounds = [];
 
                 nearest.forEach((item, index) => {
                     const polyline = allPolylines[item.segment.id];
@@ -517,8 +617,23 @@ def generate_optimized_map():
                             })
                         }).addTo(map);
                         numberMarkers.push(marker);
+
+                        // Add to bounds
+                        allBounds.push([centroid[0], centroid[1]]);
                     }
                 });
+
+                // Add search marker location to bounds
+                allBounds.push([lat, lon]);
+
+                // Fit map to show all markers
+                if (allBounds.length > 0) {
+                    const bounds = L.latLngBounds(allBounds);
+                    map.fitBounds(bounds, {
+                        padding: [50, 50],
+                        maxZoom: 16
+                    });
+                }
             }
 
             resultsPanel.classList.add('show');
@@ -536,6 +651,15 @@ def generate_optimized_map():
                 map.fitBounds(bounds, { padding: [50, 50] });
 
                 polyline.openPopup();
+            }
+        }
+
+        function toggleResults() {
+            const resultsList = document.getElementById('resultsList');
+            const toggleIcon = document.getElementById('toggleIcon');
+            if (resultsList && toggleIcon) {
+                resultsList.classList.toggle('collapsed');
+                toggleIcon.textContent = resultsList.classList.contains('collapsed') ? '▶' : '▼';
             }
         }
 
