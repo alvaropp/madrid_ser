@@ -3,19 +3,26 @@
 Interactive map showing all regulated parking zones (SER - Servicio de Estacionamiento Regulado) in Madrid with color-coded segments and parking spot counts.
 
 
-## Generating the Map
+## Live Map
 
-If you need to update the map with new data:
+View the interactive map at: **https://alvaropp.github.io/madrid_ser/**
+
+## Updating the Map
+
+When you have new data and want to update the live map:
 
 ```bash
-# Install dependencies
+# Install dependencies (first time only)
 pip install -r requirements.txt
 
-# Regenerate the map
-python generate_map.py
+# Generate and deploy the updated map to GitHub Pages
+./deploy.sh
 ```
 
-This will create a new `index.html` with all data embedded and optimized.
+This will:
+1. Generate a new `index.html` with the latest data
+2. Push it to the `gh-pages` branch
+3. Update the live website automatically
 
 
 ### Data Sources
