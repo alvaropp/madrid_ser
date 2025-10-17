@@ -90,327 +90,117 @@ def generate_optimized_map():
     total_segments = len(gdf)
     total_spots = int(gdf['Res_NumPla'].sum())
 
-    # Start building HTML - using regular string concatenation to avoid f-string brace issues
+    # Start building HTML
     html_content = """<!DOCTYPE html>
-<html>
+<html lang="es">
 <head>
     <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Madrid SER - Regulated Parking Zones</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <style>
-        * {
+        html, body {
+            height: 100%;
             margin: 0;
             padding: 0;
-            box-sizing: border-box;
-        }
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
-            height: 100vh;
-            overflow: hidden;
         }
         #map {
-            width: 100%;
-            height: 100%;
-        }
-        .info-box {
-            position: absolute;
-            top: 10px;
-            left: 50%;
-            transform: translateX(-50%);
-            background: white;
-            padding: 15px 30px;
-            border-radius: 8px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
-            z-index: 1000;
-        }
-        .info-box h2 {
-            margin: 0;
-            font-size: 20px;
-        }
-        .info-box p {
-            margin: 5px 0 0 0;
-            font-size: 14px;
-            color: #666;
-        }
-        .legend {
-            position: absolute;
-            bottom: 30px;
-            right: 30px;
-            background: white;
-            padding: 15px;
-            border-radius: 8px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
-            z-index: 1000;
-            font-size: 14px;
-        }
-        .legend-title {
-            font-weight: bold;
-            margin-bottom: 10px;
-        }
-        .legend-item {
-            display: flex;
-            align-items: center;
-            margin: 5px 0;
-        }
-        .legend-line {
-            width: 20px;
-            height: 3px;
-            margin-right: 8px;
-        }
-        .legend-note {
-            margin-top: 10px;
-            font-size: 12px;
-            color: #666;
-            font-style: italic;
-        }
-        .loading {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            background: white;
-            padding: 30px;
-            border-radius: 8px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
-            z-index: 2000;
-            text-align: center;
-        }
-        .spinner {
-            border: 4px solid #f3f3f3;
-            border-top: 4px solid #667eea;
-            border-radius: 50%;
-            width: 40px;
-            height: 40px;
-            animation: spin 1s linear infinite;
-            margin: 0 auto 15px;
-        }
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-        .search-box {
-            position: absolute;
-            top: 80px;
-            left: 10px;
-            background: white;
-            padding: 15px;
-            border-radius: 8px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
-            z-index: 1000;
-            width: 350px;
-        }
-        .search-box h3 {
-            margin: 0 0 10px 0;
-            font-size: 16px;
-        }
-        .search-input-container {
-            display: flex;
-            gap: 5px;
-            margin-bottom: 10px;
+            height: 100vh;
             width: 100%;
         }
-        .search-box input {
-            flex: 1;
-            padding: 8px;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-            font-size: 14px;
-        }
-        .search-box button {
-            padding: 8px 12px;
-            background: #007bff;
-            color: white;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 14px;
-            flex-shrink: 0;
-        }
-        .search-box button:hover {
-            background: #0056b3;
-        }
-        .search-box button:disabled {
-            background: #ccc;
-            cursor: not-allowed;
-        }
-        .search-box button.clear-btn {
-            background: #6c757d;
-        }
-        .search-box button.clear-btn:hover {
-            background: #5a6268;
-        }
-        .results-panel {
-            max-height: 400px;
+        .overlay-panel {
+            position: absolute;
+            z-index: 1000;
+            max-height: 80vh;
             overflow-y: auto;
-            margin-top: 10px;
-            display: none;
         }
-        .results-panel.show {
-            display: block;
+        .top-left {
+            top: 10px;
+            left: 10px;
+            max-width: 350px;
         }
-        .results-header {
-            padding: 10px;
-            font-weight: bold;
-            border-bottom: 2px solid #007bff;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            cursor: pointer;
-            user-select: none;
-        }
-        .results-header:hover {
-            background: #f5f5f5;
-        }
-        .toggle-icon {
-            font-size: 12px;
-            color: #666;
-        }
-        .results-list {
-            display: block;
-        }
-        .results-list.collapsed {
-            display: none;
+        .bottom-right {
+            bottom: 40px;
+            right: 10px;
+            max-width: 250px;
         }
         .result-item {
-            padding: 10px;
-            border-top: 1px solid #eee;
             cursor: pointer;
             transition: background 0.2s;
         }
         .result-item:hover {
-            background: #f5f5f5;
-        }
-        .result-item strong {
-            color: #007bff;
-        }
-        .result-distance {
-            color: #666;
-            font-size: 13px;
-        }
-        .error-message {
-            color: #dc3545;
-            font-size: 13px;
-            margin-top: 5px;
+            background: #f8f9fa;
         }
         @media (max-width: 768px) {
-            .info-box {
-                top: 10px;
-                left: 10px;
-                right: 10px;
-                transform: none;
-                padding: 10px 15px;
+            .top-left {
+                max-width: calc(100vw - 20px);
+                max-height: 50vh;
             }
-            .info-box h2 {
-                font-size: 16px;
-            }
-            .info-box p {
-                font-size: 12px;
-            }
-            .search-box {
-                width: calc(100% - 20px);
-                left: 10px;
-                right: 10px;
-                top: 80px;
-            }
-            .search-box h3 {
-                font-size: 14px;
-            }
-            .search-box input {
-                font-size: 13px;
-                padding: 6px;
-            }
-            .search-box button {
-                font-size: 12px;
-                padding: 6px 10px;
-            }
-            .legend {
+            .bottom-right {
                 bottom: 10px;
                 right: 10px;
                 left: 10px;
-                font-size: 11px;
-                padding: 10px;
-            }
-            .legend-item {
-                margin: 3px 0;
-            }
-            .result-item {
-                padding: 8px;
-            }
-            .results-panel {
-                max-height: 250px;
-            }
-        }
-        @media (max-width: 480px) {
-            .info-box {
-                position: relative;
-                top: 0;
-                left: 0;
-                right: 0;
-                margin: 0;
-                border-radius: 0;
-            }
-            .search-box {
-                top: auto;
-                bottom: 60px;
-                left: 10px;
-                right: 10px;
-                width: calc(100% - 20px);
-            }
-            .legend {
-                bottom: 10px;
-                left: 10px;
-                right: 10px;
-                font-size: 10px;
-                padding: 8px;
-            }
-            .legend-title {
-                margin-bottom: 5px;
+                max-width: none;
+                font-size: 0.85rem;
             }
         }
     </style>
 </head>
 <body>
-    <div class="loading" id="loading">
-        <div class="spinner"></div>
-        <div>Loading map...</div>
-    </div>
-
     <div id="map"></div>
 
-    <div class="info-box">
-        <h2>Madrid SER - Regulated Parking Zones</h2>
-        <p>""" + f"{total_segments:,} segments | {total_spots:,} parking spots" + """</p>
-    </div>
-
-    <div class="search-box">
-        <h3>Find Blue Parking</h3>
-        <div class="search-input-container">
-            <input type="text" id="addressInput" placeholder="Enter Madrid address..." />
-            <button onclick="searchAddress()">Search</button>
-            <button class="clear-btn" onclick="clearSearch()">Clear</button>
+    <!-- Info & Search Panel -->
+    <div class="overlay-panel top-left">
+        <div class="card shadow-sm">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0">Madrid SER - Parking</h5>
+                <small>""" + f"{total_segments:,} segments | {total_spots:,} spots" + """</small>
+            </div>
+            <div class="card-body">
+                <h6>Find Blue Parking</h6>
+                <div class="input-group mb-2">
+                    <input type="text" class="form-control" id="addressInput" placeholder="Enter Madrid address...">
+                    <button class="btn btn-primary" onclick="searchAddress()">Search</button>
+                    <button class="btn btn-secondary" onclick="clearSearch()">Clear</button>
+                </div>
+                <div id="errorMessage" class="text-danger small"></div>
+                <div id="resultsPanel" class="mt-2" style="display: none;">
+                    <div class="d-grid">
+                        <button class="btn btn-sm btn-outline-primary" type="button" data-bs-toggle="collapse" data-bs-target="#resultsList">
+                            <span id="resultsTitle">Nearest Blue Zones</span>
+                            <span id="toggleIcon">▼</span>
+                        </button>
+                    </div>
+                    <div class="collapse show" id="resultsList"></div>
+                </div>
+            </div>
         </div>
-        <div id="errorMessage" class="error-message"></div>
-        <div id="resultsPanel" class="results-panel"></div>
     </div>
 
-    <div class="legend">
-        <div class="legend-title">Zone Types</div>
+    <!-- Legend -->
+    <div class="overlay-panel bottom-right">
+        <div class="card shadow-sm">
+            <div class="card-body p-2">
+                <div class="fw-bold mb-1 small">Zone Types</div>
 """
 
     for zone_type in sorted(ZONE_COLORS.keys()):
         if zone_type != 'Unknown':
             color = ZONE_COLORS[zone_type]
-            html_content += f"""        <div class="legend-item">
-            <div class="legend-line" style="background-color: {color};"></div>
-            <span>{zone_type}</span>
-        </div>
+            html_content += f"""                <div class="d-flex align-items-center mb-1">
+                    <div style="width: 20px; height: 3px; background: {color}; margin-right: 8px;"></div>
+                    <small>{zone_type}</small>
+                </div>
 """
 
-    html_content += """        <div class="legend-note">Line thickness = number of spots</div>
+    html_content += """                <small class="text-muted fst-italic">Line thickness = spots</small>
+            </div>
+        </div>
     </div>
 
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
 """
 
@@ -419,9 +209,8 @@ def generate_optimized_map():
     html_content += f"        const zoneColors = {json.dumps(ZONE_COLORS)};\n"
     html_content += f"        const serBoundaries = {json.dumps(boundary_data)};\n"
 
-    # JavaScript code - using regular strings to avoid brace escaping issues
+    # JavaScript code
     js_code = """
-        // Initialize map
         const map = L.map('map', {
             center: [40.4168, -3.7038],
             zoom: 13,
@@ -480,16 +269,14 @@ def generate_optimized_map():
             const resultsPanel = document.getElementById('resultsPanel');
 
             errorDiv.textContent = '';
-            resultsPanel.innerHTML = '';
-            resultsPanel.classList.remove('show');
+            resultsPanel.style.display = 'none';
 
             if (!query) {
                 errorDiv.textContent = 'Please enter an address';
                 return;
             }
 
-            resultsPanel.innerHTML = '<div style="padding: 10px;">Searching...</div>';
-            resultsPanel.classList.add('show');
+            errorDiv.textContent = 'Searching...';
 
             try {
                 const geocodeUrl = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query + ', Madrid, Spain')}&limit=1`;
@@ -497,11 +284,11 @@ def generate_optimized_map():
                 const data = await response.json();
 
                 if (data.length === 0) {
-                    errorDiv.textContent = 'Address not found. Try a different search.';
-                    resultsPanel.classList.remove('show');
+                    errorDiv.textContent = 'Address not found.';
                     return;
                 }
 
+                errorDiv.textContent = '';
                 const location = data[0];
                 const lat = parseFloat(location.lat);
                 const lon = parseFloat(location.lon);
@@ -521,7 +308,6 @@ def generate_optimized_map():
 
                 if (!isInRegulatedArea(lat, lon)) {
                     errorDiv.textContent = 'This address is not in a SER-regulated area.';
-                    resultsPanel.classList.remove('show');
                     map.setView([lat, lon], 14);
                     return;
                 }
@@ -530,13 +316,13 @@ def generate_optimized_map():
 
             } catch (error) {
                 errorDiv.textContent = 'Error searching. Please try again.';
-                resultsPanel.classList.remove('show');
                 console.error('Search error:', error);
             }
         }
 
         function findNearestBlueParking(lat, lon, addressName) {
             const resultsPanel = document.getElementById('resultsPanel');
+            const resultsList = document.getElementById('resultsList');
 
             highlightedPolylines.forEach(p => {
                 p.setStyle({
@@ -566,36 +352,24 @@ def generate_optimized_map():
             const nearest = distances.slice(0, 10);
 
             if (nearest.length === 0) {
-                resultsPanel.innerHTML = '<div style="padding: 10px;">No blue parking zones found nearby.</div>';
+                resultsList.innerHTML = '<p class="text-muted p-2">No blue parking zones found nearby.</p>';
             } else {
-                let html = '<div class="results-header" onclick="toggleResults()"><span>Nearest Blue Zones:</span><span class="toggle-icon" id="toggleIcon">▼</span></div>';
-                html += '<div class="results-list" id="resultsList">';
+                let html = '<div class="list-group list-group-flush">';
                 nearest.forEach((item, index) => {
                     const distanceM = Math.round(item.distance);
                     const walkTime = Math.round(item.distance / 83);
                     html += `
-                        <div class="result-item" onclick="highlightSegment(${item.segment.id}, ${index})">
-                            <strong>${index + 1}. ${item.segment.spots} spots</strong>
-                            <div class="result-distance">
-                                ${distanceM}m away (~${walkTime} min walk)
+                        <div class="list-group-item list-group-item-action result-item p-2" onclick="highlightSegment(${item.segment.id}, ${index})">
+                            <div class="d-flex justify-content-between">
+                                <strong class="text-primary">${index + 1}. ${item.segment.spots} spots</strong>
+                                <small class="text-muted">${distanceM}m (~${walkTime} min)</small>
                             </div>
                         </div>
                     `;
                 });
                 html += '</div>';
-                resultsPanel.innerHTML = html;
+                resultsList.innerHTML = html;
 
-                // Auto-collapse on small screens
-                if (window.innerWidth <= 768) {
-                    const resultsList = document.getElementById('resultsList');
-                    const toggleIcon = document.getElementById('toggleIcon');
-                    if (resultsList && toggleIcon) {
-                        resultsList.classList.add('collapsed');
-                        toggleIcon.textContent = '▶';
-                    }
-                }
-
-                // Collect all bounds for fitting the map view
                 const allBounds = [];
 
                 nearest.forEach((item, index) => {
@@ -618,15 +392,12 @@ def generate_optimized_map():
                         }).addTo(map);
                         numberMarkers.push(marker);
 
-                        // Add to bounds
                         allBounds.push([centroid[0], centroid[1]]);
                     }
                 });
 
-                // Add search marker location to bounds
                 allBounds.push([lat, lon]);
 
-                // Fit map to show all markers
                 if (allBounds.length > 0) {
                     const bounds = L.latLngBounds(allBounds);
                     map.fitBounds(bounds, {
@@ -636,7 +407,7 @@ def generate_optimized_map():
                 }
             }
 
-            resultsPanel.classList.add('show');
+            resultsPanel.style.display = 'block';
         }
 
         function highlightSegment(segmentId, index) {
@@ -654,33 +425,16 @@ def generate_optimized_map():
             }
         }
 
-        function toggleResults() {
-            const resultsList = document.getElementById('resultsList');
-            const toggleIcon = document.getElementById('toggleIcon');
-            if (resultsList && toggleIcon) {
-                resultsList.classList.toggle('collapsed');
-                toggleIcon.textContent = resultsList.classList.contains('collapsed') ? '▶' : '▼';
-            }
-        }
-
         function clearSearch() {
-            // Clear input
             document.getElementById('addressInput').value = '';
-
-            // Clear error message
             document.getElementById('errorMessage').textContent = '';
+            document.getElementById('resultsPanel').style.display = 'none';
 
-            // Hide results panel
-            document.getElementById('resultsPanel').classList.remove('show');
-            document.getElementById('resultsPanel').innerHTML = '';
-
-            // Remove search marker
             if (searchMarker) {
                 map.removeLayer(searchMarker);
                 searchMarker = null;
             }
 
-            // Reset highlighted polylines
             highlightedPolylines.forEach(p => {
                 p.setStyle({
                     weight: p.options.originalWeight,
@@ -690,13 +444,11 @@ def generate_optimized_map():
             });
             highlightedPolylines = [];
 
-            // Remove number markers
             numberMarkers.forEach(marker => {
                 map.removeLayer(marker);
             });
             numberMarkers = [];
 
-            // Reset map view
             map.setView([40.4168, -3.7038], 13);
         }
 
@@ -723,10 +475,10 @@ def generate_optimized_map():
 
                 polyline.bindPopup(`
                     <div style="font-family: Arial;">
-                        <h4 style="margin: 0 0 10px 0; color: ${color};">${zoneType}</h4>
-                        <p style="margin: 5px 0;"><strong>Spots:</strong> ${segment.spots}</p>
-                        <p style="margin: 5px 0;"><strong>Type:</strong> ${segment.type}</p>
-                        <p style="margin: 5px 0;"><strong>ID:</strong> ${segment.id}</p>
+                        <h6 style="color: ${color};">${zoneType}</h6>
+                        <p class="mb-1"><strong>Spots:</strong> ${segment.spots}</p>
+                        <p class="mb-1"><strong>Type:</strong> ${segment.type}</p>
+                        <p class="mb-0"><strong>ID:</strong> ${segment.id}</p>
                     </div>
                 `);
 
@@ -740,7 +492,6 @@ def generate_optimized_map():
         });
 
         L.control.layers(null, layerGroups, {collapsed: false}).addTo(map);
-        document.getElementById('loading').style.display = 'none';
         console.log('Map loaded successfully!');
     </script>
 </body>
@@ -766,6 +517,7 @@ def generate_optimized_map():
     print("  - Simplified coordinates (5 decimal places)")
     print("  - Compressed data structure")
     print("  - SER boundary checking for address validation")
+    print("  - Bootstrap 5 responsive framework")
 
 
 if __name__ == "__main__":
