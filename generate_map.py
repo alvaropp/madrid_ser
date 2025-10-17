@@ -102,15 +102,21 @@ def generate_optimized_map():
     <style>
         html, body {
             height: 100%;
+            width: 100%;
             margin: 0;
             padding: 0;
+            overflow: hidden;
+            position: fixed;
         }
         #map {
             height: 100vh;
-            width: 100%;
+            width: 100vw;
+            position: fixed;
+            top: 0;
+            left: 0;
         }
         .overlay-panel {
-            position: absolute;
+            position: fixed;
             z-index: 1000;
             max-height: 80vh;
             overflow-y: auto;
@@ -121,7 +127,7 @@ def generate_optimized_map():
             max-width: 350px;
         }
         .bottom-right {
-            bottom: 40px;
+            bottom: 35px;
             right: 10px;
             max-width: 250px;
         }
@@ -138,10 +144,9 @@ def generate_optimized_map():
                 max-height: 50vh;
             }
             .bottom-right {
-                bottom: 10px;
+                bottom: 35px;
                 right: 10px;
-                left: 10px;
-                max-width: none;
+                max-width: 200px;
                 font-size: 0.85rem;
             }
         }
