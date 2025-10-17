@@ -2,8 +2,10 @@
 Generate an optimized static HTML file with compressed data.
 Much faster loading than the standard Folium output.
 """
-import geopandas as gpd
+
 import json
+
+import geopandas as gpd
 
 # Configuration
 DATA_FILE = "data/SHP_ZIP/Bandas_de_Aparcamiento.shp"
@@ -12,12 +14,12 @@ OUTPUT_FILE = "index.html"
 
 # Color mapping for zone types
 ZONE_COLORS = {
-    'Verde': '#28a745',
-    'Azul': '#007bff',
-    'Naranja': '#fd7e14',
-    'Rojo': '#dc3545',
-    'Alta Rotación': '#6f42c1',
-    'Unknown': '#6c757d'
+    "Verde": "#28a745",
+    "Azul": "#007bff",
+    "Naranja": "#fd7e14",
+    "Rojo": "#dc3545",
+    "Alta Rotación": "#6f42c1",
+    "Unknown": "#6c757d",
 }
 
 
@@ -46,39 +48,41 @@ def generate_optimized_map():
     boundary_gdf = boundary_gdf.to_crs(epsg=4326)
 
     # Filter out areas that are NOT in the SER zone
-    boundary_gdf = boundary_gdf[boundary_gdf['NOMBAR'] != 'No está en la zona SER']
+    boundary_gdf = boundary_gdf[boundary_gdf["NOMBAR"] != "No está en la zona SER"]
 
     # Convert boundary polygons to simplified coordinate lists
     boundary_data = []
     for idx, row in boundary_gdf.iterrows():
-        coords = list(row['geometry'].exterior.coords)
+        coords = list(row["geometry"].exterior.coords)
         simplified_coords = simplify_coordinates(coords)
         boundary_data.append(simplified_coords)
 
-    print(f"  Loaded {len(boundary_data)} SER boundary polygons (filtered out non-SER areas)")
+    print(
+        f"  Loaded {len(boundary_data)} SER boundary polygons (filtered out non-SER areas)"
+    )
 
     # Clean up the data
-    gdf['Color'] = gdf['Color'].fillna('Unknown')
-    gdf['Res_NumPla'] = gdf['Res_NumPla'].fillna(0).astype(int)
+    gdf["Color"] = gdf["Color"].fillna("Unknown")
+    gdf["Res_NumPla"] = gdf["Res_NumPla"].fillna(0).astype(int)
 
     print("Processing segments by zone type...")
     zone_data = {}
 
-    for zone_type in sorted(gdf['Color'].unique()):
+    for zone_type in sorted(gdf["Color"].unique()):
         print(f"  Processing {zone_type}...")
-        zone_gdf = gdf[gdf['Color'] == zone_type]
+        zone_gdf = gdf[gdf["Color"] == zone_type]
 
         features = []
         for idx, row in zone_gdf.iterrows():
-            coords = list(row['geometry'].coords)
+            coords = list(row["geometry"].coords)
             simplified_coords = simplify_coordinates(coords)
 
             feature = {
-                'coords': simplified_coords,
-                'spots': int(row['Res_NumPla']),
-                'type': str(row['Bateria_Li']) if row['Bateria_Li'] else 'N/A',
-                'id': int(row['ID']),
-                'centroid': calculate_centroid(simplified_coords)
+                "coords": simplified_coords,
+                "spots": int(row["Res_NumPla"]),
+                "type": str(row["Bateria_Li"]) if row["Bateria_Li"] else "N/A",
+                "id": int(row["ID"]),
+                "centroid": calculate_centroid(simplified_coords),
             }
             features.append(feature)
 
@@ -88,10 +92,11 @@ def generate_optimized_map():
 
     # Calculate statistics
     total_segments = len(gdf)
-    total_spots = int(gdf['Res_NumPla'].sum())
+    total_spots = int(gdf["Res_NumPla"].sum())
 
     # Start building HTML
-    html_content = """<!DOCTYPE html>
+    html_content = (
+        """<!DOCTYPE html>
 <html lang="es">
 <head>
     <meta charset="utf-8">
@@ -160,7 +165,9 @@ def generate_optimized_map():
         <div class="card shadow-sm">
             <div class="card-header bg-primary text-white">
                 <h5 class="mb-0">Madrid SER - Parking</h5>
-                <small>""" + f"{total_segments:,} segments | {total_spots:,} spots" + """</small>
+                <small>"""
+        + f"{total_segments:,} segments | {total_spots:,} spots"
+        + """</small>
             </div>
             <div class="card-body">
                 <h6>Find Blue Parking</h6>
@@ -194,13 +201,17 @@ def generate_optimized_map():
                 </div>
                 <div class="collapse" id="legendContent">
 """
+    )
 
     for zone_type in sorted(ZONE_COLORS.keys()):
-        if zone_type != 'Unknown':
+        if zone_type != "Unknown":
             color = ZONE_COLORS[zone_type]
-            html_content += f"""                    <div class="d-flex align-items-center mb-1">
-                        <div style="width: 20px; height: 3px; background: {color}; margin-right: 8px;"></div>
-                        <small>{zone_type}</small>
+            html_content += f"""                    <div class="form-check form-check-inline d-flex align-items-center mb-1">
+                        <input class="form-check-input me-2" type="checkbox" id="zone-{zone_type.replace(' ', '-')}" checked onchange="toggleZoneLayer('{zone_type}', this.checked)">
+                        <label class="form-check-label d-flex align-items-center" for="zone-{zone_type.replace(' ', '-')}">
+                            <div style="width: 20px; height: 3px; background: {color}; margin-right: 8px;"></div>
+                            <small>{zone_type}</small>
+                        </label>
                     </div>
 """
 
@@ -223,7 +234,7 @@ def generate_optimized_map():
     # JavaScript code
     js_code = """
         const map = L.map('map', {
-            center: [40.4168, -3.7038],
+            center: [40.4318, -3.7038],
             zoom: 13,
             preferCanvas: true
         });
@@ -502,7 +513,16 @@ def generate_optimized_map():
             layerGroup.addTo(map);
         });
 
-        L.control.layers(null, layerGroups, {collapsed: false}).addTo(map);
+        function toggleZoneLayer(zoneType, visible) {
+            if (layerGroups[zoneType]) {
+                if (visible) {
+                    layerGroups[zoneType].addTo(map);
+                } else {
+                    map.removeLayer(layerGroups[zoneType]);
+                }
+            }
+        }
+
         console.log('Map loaded successfully!');
     </script>
 </body>
@@ -512,10 +532,10 @@ def generate_optimized_map():
     html_content += js_code
 
     print(f"Saving to {OUTPUT_FILE}...")
-    with open(OUTPUT_FILE, 'w', encoding='utf-8') as f:
+    with open(OUTPUT_FILE, "w", encoding="utf-8") as f:
         f.write(html_content)
 
-    file_size_mb = len(html_content.encode('utf-8')) / (1024 * 1024)
+    file_size_mb = len(html_content.encode("utf-8")) / (1024 * 1024)
 
     print(f"✓ Optimized map generated successfully!")
     print(f"  File: {OUTPUT_FILE}")
